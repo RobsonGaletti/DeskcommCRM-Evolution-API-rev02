@@ -1,0 +1,138 @@
+"use client";
+
+import { HealthCard } from "./HealthCard";
+import {
+  WifiHigh,
+  Storefront,
+  Brain,
+  ClipboardText,
+} from "@/lib/ui/icons";
+import type { TenantHealthResponse } from "@/app/api/v1/admin/tenants/[id]/health/route";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
+function formatLag(seconds: number | null): string {
+  if (seconds === null) return "—";
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}min`;
+  return `${Math.round(seconds / 3600)}h`;
+}
+
+function formatCents(cents: number): string {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(cents / 100);
+}
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
+interface HealthGridProps {
+  health: TenantHealthResponse;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+export function HealthGrid({ health }: HealthGridProps) {
+  const { waha, nuvemshop, ai, audit } = health;
+
+  // WAHA card
+  const wahaConnected = waha.sessions.filter(
+    (s) => s.status === "WORKING" || s.status === "CONNECTED",
+  ).length;
+  const wahaPrimary =
+    waha.sessions.length === 0
+      ? "Sem sessões"
+      : `${wahaConnected}/${waha.sessions.length} conectada${waha.sessions.length !== 1 ? "s" : ""}`;
+
+  const wahaDetails = waha.sessions.slice(0, 4).map((s) => ({
+    label: s.waha_session_name ?? s.id.slice(0, 8),
+    value: s.status ?? "—",
+  }));
+
+  // Nuvemshop card
+  const nuPrimary = nuvemshop.connected ? "Conectado" : "Não conectado";
+  const nuDetails = [
+    { label: "Última sync", value: formatDate(nuvemshop.last_synced_at) },
+    ...(nuvemshop.days_until_expiry !== null
+      ? [{ label: "Expira em", value: `${nuvemshop.days_until_expiry}d` }]
+      : []),
+    ...(nuvemshop.expires_at
+      ? [{ label: "Token expira", value: formatDate(nuvemshop.expires_at) }]
+      : []),
+  ];
+
+  // AI budget card
+  const aiPrimary =
+    ai.percent_used !== null ? `${ai.percent_used}% usado` : "Sem orçamento";
+  const aiDetails = [
+    { label: "Consumido", value: formatCents(ai.consumed_cents) },
+    {
+      label: "Orçamento",
+      value: ai.budget_cents ? formatCents(ai.budget_cents) : "Ilimitado",
+    },
+  ];
+
+  // Audit lag card
+  const auditPrimary = formatLag(audit.lag_seconds);
+  const auditDetails = [
+    { label: "Último evento", value: formatDate(audit.last_at) },
+    {
+      label: "Lag",
+      value: audit.lag_seconds !== null ? formatLag(audit.lag_seconds) : "—",
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <HealthCard
+        title="WAHA"
+        status={waha.overall_status}
+        icon={<WifiHigh size={18} aria-hidden />}
+        primaryValue={wahaPrimary}
+        details={wahaDetails}
+      />
+
+      <HealthCard
+        title="Nuvemshop"
+        status={nuvemshop.status}
+        icon={<Storefront size={18} aria-hidden />}
+        primaryValue={nuPrimary}
+        details={nuDetails}
+      />
+
+      <HealthCard
+        title="Orçamento IA"
+        status={ai.status}
+        icon={<Brain size={18} aria-hidden />}
+        primaryValue={aiPrimary}
+        details={aiDetails}
+      />
+
+      <HealthCard
+        title="Audit Lag"
+        status={audit.status}
+        icon={<ClipboardText size={18} aria-hidden />}
+        primaryValue={auditPrimary}
+        details={auditDetails}
+      />
+    </div>
+  );
+}

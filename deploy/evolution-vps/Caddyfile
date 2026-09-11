@@ -1,0 +1,10 @@
+# Reverse proxy + HTTPS automático (Let's Encrypt) só pra Evolution API.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy evolution-api:8080
+}

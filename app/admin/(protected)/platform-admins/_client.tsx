@@ -1,0 +1,37 @@
+"use client";
+import { DBAOnlyNotice } from "@/components/admin/platform-admins/DBAOnlyNotice";
+import {
+  PlatformAdminsTable,
+  PlatformAdminsTableSkeleton,
+} from "@/components/admin/platform-admins/PlatformAdminsTable";
+import { useAdminPlatformAdmins } from "@/hooks/useAdminPlatformAdmins";
+
+export function PlatformAdminsClient() {
+  const { data, isLoading, isError } = useAdminPlatformAdmins();
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Platform Admins</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Administradores com acesso privilegiado à plataforma
+        </p>
+      </div>
+
+      {/* T-04 Notice — proeminente, antes da tabela */}
+      <DBAOnlyNotice />
+
+      {/* Table */}
+      {isLoading ? (
+        <PlatformAdminsTableSkeleton />
+      ) : isError ? (
+        <div className="flex items-center justify-center rounded-lg border py-12 text-sm text-muted-foreground">
+          Erro ao carregar platform admins. Tente recarregar.
+        </div>
+      ) : (
+        <PlatformAdminsTable data={data ?? []} />
+      )}
+    </div>
+  );
+}

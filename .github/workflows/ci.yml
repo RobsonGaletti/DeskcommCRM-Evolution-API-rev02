@@ -1,0 +1,69 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      # Invariante 1 de docs/doctrine/restricao-de-canal.md: nenhuma feature
+      # nomeia um provider. Step próprio (e não só dentro de `gov:verify`)
+      # porque é o CI que gateia PR — `gov:verify` não é invocado por nenhum
+      # workflow, e mecanismo que não roda no gate não protege nada.
+      - name: Channel provider leak
+        run: pnpm lint:channels
+
+      - name: Unit tests
+        run: pnpm test:unit
+
+      # Scripts do kit self-host num repo git descartável (docker/crontab
+      # dublados). É o único gate que exercita o update.sh — um erro aqui
+      # rebobina a instalação de quem hospeda, e nenhum teste TS o veria.
+      - name: Kit self-host (bash)
+        run: pnpm test:shell
+
+  # Gate de isolamento multi-tenant + invariantes de governança.
+  # Job separado de propósito: roda em paralelo ao verify (não atrasa o feedback
+  # rápido) e vira um check nomeado, que é o que a doutrina de RLS exige provar.
+  # scripts/test-db.sh sobe pgvector/pgvector:pg17, aplica supabase/baseline.sql
+  # em modo install (ON_ERROR_STOP=1) e update (idempotência), e roda
+  # tests/invariants/** contra ele. Invocar via `pnpm test:db` é o que põe
+  # node_modules/.bin no PATH que o script herda para chamar `vitest`.
+  invariants:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: RLS isolation + governance invariants
+        run: pnpm test:db
